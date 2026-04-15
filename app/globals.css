@@ -1,26 +1,115 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+@theme {
+  --color-background: #faf5ef;
+  --color-foreground: #3d2b1f;
+  --color-card: #ffffff;
+  --color-card-foreground: #3d2b1f;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #3d2b1f;
+  --color-primary: #8b7355;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5efe9;
+  --color-secondary-foreground: #5c4a36;
+  --color-muted: #e8e0d6;
+  --color-muted-foreground: #7c6850;
+  --color-accent: #a68b5b;
+  --color-accent-foreground: #ffffff;
+  --color-destructive: #9b3c3c;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #ddd5c9;
+  --color-input: #e8e0d6;
+  --color-ring: #8b7355;
+  --radius: 0.75rem;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #faf5ef;
+  --foreground: #3d2b1f;
+  --card: #ffffff;
+  --card-foreground: #3d2b1f;
+  --popover: #ffffff;
+  --popover-foreground: #3d2b1f;
+  --primary: #8b7355;
+  --primary-foreground: #ffffff;
+  --secondary: #f5efe9;
+  --secondary-foreground: #5c4a36;
+  --muted: #e8e0d6;
+  --muted-foreground: #7c6850;
+  --accent: #a68b5b;
+  --accent-foreground: #ffffff;
+  --destructive: #9b3c3c;
+  --destructive-foreground: #ffffff;
+  --border: #ddd5c9;
+  --input: #e8e0d6;
+  --ring: #8b7355;
+  --radius: 0.75rem;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.font-heading {
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.hero-gradient {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--background) 100%);
+}
+
+.card-shadow {
+  box-shadow: 0 4px 6px -1px rgba(61, 43, 31, 0.08), 0 2px 4px -1px rgba(61, 43, 31, 0.04);
+}
+
+.card-shadow-hover {
+  box-shadow: 0 10px 15px -3px rgba(61, 43, 31, 0.1), 0 4px 6px -2px rgba(61, 43, 31, 0.05);
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out forwards;
+}
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none !important;  /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Hide scrollbar for chat page */
+div[class*="flex-1"][class*="overflow-y-auto"] {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+div[class*="flex-1"][class*="overflow-y-auto"]::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
