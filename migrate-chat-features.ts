@@ -1,15 +1,20 @@
 import { neon } from "@neondatabase/serverless";
+import { loadEnvConfig } from "@next/env";
 
-if (!process.env.DATABASE_URL) {
-  console.error("Error: DATABASE_URL environment variable is not set");
-  console.error("Please make sure you're running this script with the correct environment variables loaded from .env.local");
-  process.exit(1);
-}
-
-const sql = neon(process.env.DATABASE_URL);
+// Load environment variables from .env.local
+const projectDir = process.cwd();
+loadEnvConfig(projectDir);
 
 async function runMigration() {
-  console.log("Running migration: AI Chat Features...");
+  if (!process.env.DATABASE_URL) {
+    console.warn("⚠️  Warning: DATABASE_URL environment variable is not set.");
+    console.warn("Skipping migration. If this is a production environment, please set the DATABASE_URL.");
+    return;
+  }
+
+  const sql = neon(process.env.DATABASE_URL);
+  
+  console.log("🚀 Running migration: AI Chat Features...");
   console.log("Database URL:", process.env.DATABASE_URL.slice(0, 20) + "...");
 
   try {
@@ -69,8 +74,17 @@ async function runMigration() {
     console.log("3. Navigate to /chat to use the AI Consultant");
   } catch (error) {
     console.error("\n❌ Migration failed:", error);
-    process.exit(1);
+    // Don't exit with 1 during build process to avoid crashing the build
+    if (process.env.NODE_ENV !== "production") {
+      process.exit(1);
+    }
   }
 }
 
-runMigration();
+// Only run if this script is executed directly
+runMigration().catch((err) => {
+  console.error("💥 Unexpected error during migration:", err);
+  if (process.env.NODE_ENV !== "production") {
+    process.exit(1);
+  }
+});
