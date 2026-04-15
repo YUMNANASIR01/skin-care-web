@@ -1,5 +1,6 @@
 import { Phone, Clock, MapPin, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export default function QuickContactSection() {
   const handleCall = () => {
@@ -28,7 +29,7 @@ export default function QuickContactSection() {
           {/* Contact Cards Grid */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {/* Phone Card */}
-            <div className="bg-card rounded-2xl p-6 shadow-lg border border-border hover:shadow-xl transition-shadow">
+            {/* <div className="bg-card rounded-2xl p-6 shadow-lg border border-border hover:shadow-xl transition-shadow">
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <Phone className="h-6 w-6 text-primary" />
               </div>
@@ -45,7 +46,28 @@ export default function QuickContactSection() {
                 <Phone className="mr-2 h-4 w-4" />
                 0312-3359106
               </Button>
-            </div>
+            </div> */}
+            {/* Appointment Card */}
+     <div className="bg-card rounded-2xl p-6 shadow-lg border border-border hover:shadow-xl transition-shadow">
+  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+    <Phone className="h-6 w-6 text-primary" />
+  </div>
+
+  <h3 className="text-xl font-semibold text-foreground mb-2">
+    Book Appointment
+  </h3>
+
+  <p className="text-muted-foreground mb-4">
+    Schedule your skin consultation with our expert team
+  </p>
+
+  <Link href="/appointment">
+  <Button className="w-full bg-primary hover:bg-green-50 hover:text-black transition-all">
+    <Phone className="mr-2 h-4 w-4" />
+    Book Now
+  </Button>
+</Link>
+    </div>
 
             {/* WhatsApp Card */}
             <div className="bg-card rounded-2xl p-6 shadow-lg border border-border hover:shadow-xl transition-shadow">
@@ -70,7 +92,7 @@ export default function QuickContactSection() {
               <Button
                 onClick={handleWhatsApp}
                 variant="outline"
-                className="w-full border-green-500 text-green-600 hover:bg-green-50"
+                className="w-full border-green-500 text-green-600 hover:bg-green-50 hover:text-black"
               >
                 Chat on WhatsApp
               </Button>
@@ -90,7 +112,7 @@ export default function QuickContactSection() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-foreground font-medium">Morning:</span>
-                  <span className="text-muted-foreground">9:00 AM - 1:00 PM</span>
+                  <span className="text-muted-foreground">11:00 AM - 1:00 PM</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-foreground font-medium">Evening:</span>

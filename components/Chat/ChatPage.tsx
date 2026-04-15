@@ -83,6 +83,7 @@ How can I help you today?`,
 
   // Voice output state
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   // Settings state
   const [autoSpeak, setAutoSpeak] = useState(true);
@@ -108,6 +109,18 @@ How can I help you today?`,
   }, [messages]);
 
   useEffect(() => {
+    const loadVoices = () => {
+      const availableVoices = window.speechSynthesis.getVoices();
+      if (availableVoices.length > 0) {
+        setVoices(availableVoices);
+      }
+    };
+
+    loadVoices();
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
     return () => {
       window.speechSynthesis.cancel();
     };
@@ -141,20 +154,24 @@ How can I help you today?`,
     const cleanText = text.replace(/[#*_~`>\-\[\]()!]/g, "").replace(/\n+/g, ". ");
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 0.9;
+    utterance.rate = 0.95;
     utterance.pitch = 1;
     utterance.lang = "en-US";
 
-    const voices = window.speechSynthesis.getVoices();
+    const availableVoices = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
     const preferredVoice =
-      voices.find((v: any) => v.lang.startsWith("en") && v.name.includes("Female")) ||
-      voices.find((v: any) => v.lang.startsWith("en-US")) ||
-      voices[0];
+      availableVoices.find((v: any) => v.lang.startsWith("en") && v.name.includes("Female")) ||
+      availableVoices.find((v: any) => v.lang.startsWith("en-US")) ||
+      availableVoices[0];
+      
     if (preferredVoice) utterance.voice = preferredVoice;
 
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    utterance.onerror = (event) => {
+      console.error("SpeechSynthesis error", event);
+      setIsSpeaking(false);
+    };
 
     window.speechSynthesis.speak(utterance);
   };
@@ -187,7 +204,8 @@ How can I help you today?`,
   };
 
   const sendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return;
+    if (!text.trim() && !uploadedImage) return;
+    if (isLoading) return;
 
     const userMsg: Message = {
       role: "user",
@@ -687,9 +705,9 @@ How can I help you today?`,
                   sendMessage(input);
                 }
               }}
-              className="flex gap-2"
+              className="flex items-end gap-2"
             >
-              <label className="cursor-pointer">
+              <label className="cursor-pointer mb-1">
                 <Button
                   type="button"
                   variant="outline"
@@ -709,14 +727,36 @@ How can I help you today?`,
                   </span>
                 </Button>
               </label>
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about skin conditions & treatments..."
-                className="flex-1 bg-background border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                disabled={isLoading}
-              />
-              <Button type="submit" size="icon" disabled={isLoading || (!input.trim() && !uploadedImage)}>
+              <div className="flex-1 relative">
+                <textarea
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    // Auto-expand textarea
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (input.trim() || uploadedImage) {
+                        const form = e.currentTarget.form;
+                        if (form) form.requestSubmit();
+                      }
+                    }
+                  }}
+                  placeholder="Ask about skin conditions..."
+                  className="w-full bg-background border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none min-h-[44px] max-h-[150px] overflow-y-auto block"
+                  disabled={isLoading}
+                  rows={1}
+                />
+              </div>
+              <Button 
+                type="submit" 
+                size="icon" 
+                className="mb-1 flex-shrink-0"
+                disabled={isLoading || (!input.trim() && !uploadedImage)}
+              >
                 <Send className="h-4 w-4" />
               </Button>
             </form>

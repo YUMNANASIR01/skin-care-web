@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Phone, PhoneOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePathname } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,12 @@ const WHATSAPP_NUMBER = "923123359106";
 export default function ImmediateCallButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const pathname = usePathname();
+
+  // Don't show the floating buttons on the chat page to avoid overlap
+  if (pathname === "/chat") {
+    return null;
+  }
 
   const handleCall = () => {
     setShowConfirm(true);
@@ -112,7 +119,7 @@ export default function ImmediateCallButton() {
 
             {/* Working Hours */}
             <div className="text-sm text-muted-foreground text-center">
-              <p>🕐 Available: 9:00 AM - 5:30 PM</p>
+              <p>🕐 Available: 11:00 AM - 5:30 PM</p>
               <p>📞 Response within 30 minutes</p>
             </div>
           </div>

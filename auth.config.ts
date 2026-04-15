@@ -18,13 +18,12 @@ async function logSignUp(
   email: string,
   name: string | null,
   method: string,
-  userId?: string,
-  req?: Request
+  userId?: string
 ) {
   try {
     await sql`
-      INSERT INTO signups (user_id, user_email, user_name, login_method, ip_address, user_agent, status)
-      VALUES (${userId || null}, ${email}, ${name || null}, ${method}, ${getIP(req)}, ${req?.headers.get("user-agent") || null}, 'success')
+      INSERT INTO signups (user_id, user_email, user_name, login_method, status)
+      VALUES (${userId || null}, ${email}, ${name || null}, ${method}, 'success')
     `;
   } catch (err) {
     console.error("Failed to log signup:", err);
@@ -35,13 +34,12 @@ async function logSignIn(
   email: string,
   name: string | null,
   status: string,
-  userId?: string,
-  req?: Request
+  userId?: string
 ) {
   try {
     await sql`
-      INSERT INTO signins (user_id, user_email, user_name, ip_address, user_agent, status)
-      VALUES (${userId || null}, ${email}, ${name || null}, ${getIP(req)}, ${req?.headers.get("user-agent") || null}, ${status})
+      INSERT INTO signins (user_id, user_email, user_name, status)
+      VALUES (${userId || null}, ${email}, ${name || null}, ${status})
     `;
   } catch (err) {
     console.error("Failed to log signin:", err);
@@ -52,13 +50,12 @@ async function logGoogleLogin(
   email: string,
   name: string | null,
   image: string | null,
-  userId?: string,
-  req?: Request
+  userId?: string
 ) {
   try {
     await sql`
-      INSERT INTO google_logins (user_id, user_email, user_name, user_image, ip_address, user_agent, status)
-      VALUES (${userId || null}, ${email}, ${name || null}, ${image || null}, ${getIP(req)}, ${req?.headers.get("user-agent") || null}, 'success')
+      INSERT INTO google_logins (user_id, user_email, user_name, user_image, status)
+      VALUES (${userId || null}, ${email}, ${name || null}, ${image || null}, 'success')
     `;
   } catch (err) {
     console.error("Failed to log google login:", err);
@@ -76,13 +73,16 @@ export const authConfig: AuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
-        displayName: { label: "Name", type: "text" },
       },
       async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email and password are required");
+        }
+
         try {
           // Zod validation for sign in
           const signInSchema = z.object({
-            email: z.string().email("Invalid email address").min(1, "Email is required"),
+            email: z.string().email("Invalid email address"),
             password: z.string().min(1, "Password is required"),
           });
 
@@ -98,35 +98,27 @@ export const authConfig: AuthOptions = {
           `;
 
           if (!users || users.length === 0) {
-            console.log(`[AUTH] Account not found for email: ${email}`);
             throw new Error("Account not found. Please create an account first.");
           }
 
           const user = users[0];
-          console.log(`[AUTH] Found user: ${user.email}, hasPassword: ${!!user.password}`);
 
-          if (!user.password || typeof user.password !== "string") {
-            console.log(`[AUTH] User ${email} has no password - Google user`);
-            throw new Error("No password set. Sign in with Google instead.");
+          if (!user.password) {
+            throw new Error("This account is linked with Google. Please sign in with Google.");
           }
 
           const isValid = await bcrypt.compare(password, user.password as string);
-          console.log(`[AUTH] Password validation: ${isValid ? 'VALID' : 'INVALID'}`);
           if (!isValid) {
             throw new Error("Incorrect password. Please try again.");
           }
 
-          const userId = typeof user.id === 'string' ? user.id : user.id?.value || String(user.id);
-          console.log(`[AUTH] Sign-in SUCCESS for ${email}, userId: ${userId}`);
-
           return {
-            id: userId,
+            id: String(user.id),
             name: user.name,
             email: user.email,
-            image: user.image || null,
           };
         } catch (error: any) {
-          console.error(`[AUTH] ERROR in authorize:`, error.message);
+          console.error(`[AUTH] Authorize error:`, error.message);
           throw error;
         }
       },
@@ -137,96 +129,53 @@ export const authConfig: AuthOptions = {
   },
   pages: {
     signIn: "/auth",
+    error: "/auth",
   },
   callbacks: {
     async jwt({ token, user, account }: any) {
       if (user) {
-        console.log(`[JWT CALLBACK] User received: ${user.email}, id: ${user.id}`);
-        // Handle both Drizzle objects and plain strings
-        if (user.id) {
-          if (typeof user.id === 'string') {
-            token.id = user.id;
-          } else if (user.id.value) {
-            token.id = user.id.value;
-          } else {
-            token.id = String(user.id);
-          }
-        }
-        console.log(`[JWT CALLBACK] Token id set to: ${token.id}`);
+        token.id = user.id;
       }
-
-      // Handle Google OAuth tokens
       if (account?.provider === "google") {
-        // Save Google tokens and expiry time (2 days from now)
         token.googleAccessToken = account.access_token;
-        token.googleRefreshToken = account.refresh_token;
-        token.googleExpiresAt = Date.now() + 2 * 24 * 60 * 60 * 1000; // 2 days in milliseconds
-        token.googleLoginDate = Date.now();
       }
-
-      // Check if Google token has expired (2 days)
-      if (token.googleExpiresAt && Date.now() > token.googleExpiresAt) {
-        console.log("Google token expired, user needs to re-authenticate");
-        // Clear expired tokens but keep refresh token
-        token.googleAccessToken = null;
-        token.googleRefreshTokenExpired = true;
-        token.needsReauth = true;
-      }
-
       return token;
     },
     async session({ session, token }: any) {
-      console.log(`[SESSION CALLBACK] Token: ${JSON.stringify({ id: token.id, email: token.email })}`);
-      (session.user as any).id = token.id as string;
-      (session.user as any).googleTokenExpired = token.needsReauth || false;
-      (session.user as any).googleLoginDate = token.googleLoginDate;
-      console.log(`[SESSION CALLBACK] Session created for user: ${(session.user as any).id}`);
+      if (session.user) {
+        (session.user as any).id = token.id;
+      }
       return session;
     },
-    async signIn({ user, account, req }: any) {
-      try {
-        // Handle Google sign-in
-        if (account?.provider === "google") {
+    async signIn({ user, account }: any) {
+      if (account?.provider === "google") {
+        try {
           const existingUsers = await sql`
             SELECT id FROM users WHERE email = ${user.email}
           `;
 
+          let userId;
           if (!existingUsers || existingUsers.length === 0) {
-            // Generate a proper UUID for the new user
-            const newUserId = crypto.randomUUID();
+            userId = crypto.randomUUID();
             await sql`
               INSERT INTO users (id, name, email, image)
-              VALUES (${newUserId}, ${user.name}, ${user.email}, ${user.image})
+              VALUES (${userId}, ${user.name}, ${user.email}, ${user.image})
             `;
-            await logSignUp(user.email, user.name, "google", newUserId, req);
-            await logGoogleLogin(user.email, user.name, user.image, newUserId, req);
-            // Ensure user.id is a plain string
-            user.id = newUserId;
+            await logSignUp(user.email, user.name, "google", userId);
           } else {
-            // Extract plain string from Drizzle object
-            const existingUserId = existingUsers[0].id.value || String(existingUsers[0].id);
-            await logGoogleLogin(user.email, user.name, user.image, existingUserId, req);
-            user.id = existingUserId;
+            userId = String(existingUsers[0].id);
           }
-        } else if (account?.provider === "credentials") {
-          // Log credentials sign-in to signins table
-          const userId = user.id || user.id?.value;
-          console.log(`[SIGNIN CALLBACK] Logging credentials sign-in for: ${user.email}, userId: ${userId}`);
-          try {
-            await logSignIn(user.email, user.name, "success", userId);
-          } catch (logError) {
-            console.error("[SIGNIN CALLBACK] Failed to log sign-in:", logError);
-            // Don't fail sign-in if logging fails
-          }
+          
+          await logGoogleLogin(user.email, user.name, user.image, userId);
+          user.id = userId;
+          return true;
+        } catch (error) {
+          console.error("[SIGNIN CALLBACK] Google sign-in error:", error);
+          return true; // Still allow sign-in
         }
-        
-        console.log(`[SIGNIN CALLBACK] Returning true for ${account?.provider}`);
-        return true;
-      } catch (error) {
-        console.error("[SIGNIN CALLBACK] Error in signIn callback:", error);
-        // Return true anyway to allow sign-in even if logging fails
-        return true;
       }
+      return true;
     },
   },
 };
+
