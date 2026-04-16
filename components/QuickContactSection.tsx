@@ -1,6 +1,7 @@
-import { Phone, Clock, MapPin, Mail } from "lucide-react";
+import { Phone, Clock, MapPin, Mail, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { toast } from "sonner";
 
 export default function QuickContactSection() {
   const handleCall = () => {
@@ -10,6 +11,12 @@ export default function QuickContactSection() {
   const handleWhatsApp = () => {
     const message = encodeURIComponent("Hello! I need a skin consultation.");
     window.open("https://wa.me/923123359106?text=" + message, "_blank");
+    
+    toast.success("Consultation Initiated!", {
+      description: "Dr. Yumna Nasir will assist you on WhatsApp. Please share clear photos of the affected area.",
+      duration: 5000,
+      icon: <MessageCircle className="h-5 w-5 text-green-600" />,
+    });
   };
 
   return (

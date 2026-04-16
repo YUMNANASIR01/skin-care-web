@@ -141,6 +141,11 @@ const FloatingChatWidget = () => {
     setInput("");
     setIsLoading(true);
 
+    // Check for consultation keyword to provide a special response
+    const isConsultationRequest = text.toLowerCase().includes("consultation") || 
+                                 text.toLowerCase().includes("appointment") ||
+                                 text.toLowerCase().includes("book");
+
     let assistantSoFar = "";
 
     try {
@@ -204,6 +209,15 @@ const FloatingChatWidget = () => {
             break;
           }
         }
+      }
+
+      // If it was a consultation request, append a professional CTA if the AI didn't already
+      if (isConsultationRequest && !assistantSoFar.includes("WhatsApp")) {
+        const cta = "\n\n**For a professional consultation with Dr. Yumna Nasir, you can [Chat on WhatsApp](https://wa.me/923123359106?text=Hello!%20I%20need%20a%20skin%20consultation). Please share clear photos of the affected area for a better assessment.**";
+        assistantSoFar += cta;
+        setMessages((prev) =>
+          prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantSoFar } : m))
+        );
       }
 
       if (assistantSoFar.trim() && sessionId) {
