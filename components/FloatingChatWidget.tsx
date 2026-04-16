@@ -147,7 +147,7 @@ const FloatingChatWidget = () => {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: allMessages, sessionId }),
+        body: JSON.stringify({ messages: allMessages, sessionId, responseLength: "short" }),
       });
 
       if (!resp.ok) {

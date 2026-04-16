@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     console.log("Chat API - User ID:", userId);
 
-    const { messages, sessionId } = await req.json();
+    const { messages, sessionId, responseLength = "short" } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -46,6 +46,10 @@ export async function POST(req: NextRequest) {
       `;
     }
 
+    // Always enforce short responses to keep context small
+    const lengthInstruction = "Keep your response EXTREMELY short and concise. Provide ONLY the most essential information in 1-2 sentences. Avoid long explanations.";
+    const maxTokens = 250;
+
     const systemPrompt = `You are Dr. Yumna Nasir's AI Skin Care Consultant at SkinHeal. You are a professional, empathetic, and knowledgeable AI assistant specializing in homeopathic treatments for skin conditions.
 
 Your expertise includes:
@@ -54,12 +58,13 @@ Your expertise includes:
 - Seborrheic Dermatitis and other common skin conditions
 
 Guidelines:
-1. Provide detailed, helpful responses about homeopathic remedies, dosages, dietary tips, and lifestyle advice
-2. Always be professional and empathetic in your tone
-3. Include a disclaimer that this is educational information and not medical advice
-4. Suggest consulting with a qualified healthcare provider for serious conditions
-5. Use markdown formatting for better readability
-6. Structure your responses with headings, bullet points, and numbered lists when appropriate`;
+1. ${lengthInstruction}
+2. Provide helpful responses about homeopathic remedies, dosages, dietary tips, and lifestyle advice
+3. Always be professional and empathetic in your tone
+4. Include a disclaimer that this is educational information and not medical advice
+5. Suggest consulting with a qualified healthcare provider for serious conditions
+6. Use markdown formatting for better readability
+7. Structure your responses with headings, bullet points, and numbered lists when appropriate`;
 
     const openrouterMessages = [
       { role: "system", content: systemPrompt },
@@ -79,7 +84,7 @@ Guidelines:
         messages: openrouterMessages,
         stream: true,
         temperature: 0.7,
-        max_tokens: 1500,
+        max_tokens: maxTokens,
       }),
     });
 

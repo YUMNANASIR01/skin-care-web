@@ -87,7 +87,7 @@ How can I help you today?`,
 
   // Settings state
   const [autoSpeak, setAutoSpeak] = useState(true);
-  const [responseLength, setResponseLength] = useState<"short" | "medium" | "long">("medium");
+  const [responseLength, setResponseLength] = useState<"short" | "medium" | "long">("short");
   const [showTimestamps, setShowTimestamps] = useState(true);
 
   // Image upload state
@@ -225,7 +225,7 @@ How can I help you today?`,
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: allMessages, sessionId }),
+        body: JSON.stringify({ messages: allMessages, sessionId, responseLength }),
       });
 
       if (!resp.ok) {
