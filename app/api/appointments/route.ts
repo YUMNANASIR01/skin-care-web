@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authConfig } from "@/auth.config";
 import { sql } from "@/lib/db";
+import crypto from "crypto";
 
 export async function GET(req: Request) {
   try {
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
     const session = await getServerSession(authConfig);
 
     if (!session?.user) {
+      console.warn("❌ Booking attempt without session");
       return NextResponse.json(
         { error: "You must be signed in to book an appointment" },
         { status: 401 }
@@ -44,7 +46,23 @@ export async function POST(req: Request) {
     }
 
     // Extract user ID - handle different session formats
-    const userId = (session.user as any).id || session.user?.email || 'unknown';
+    let userId = (session.user as any).id;
+    
+    // Fallback: If ID is missing from session, try to look it up by email
+    if (!userId && session.user?.email) {
+      console.log("🔍 Session ID missing, looking up user by email:", session.user.email);
+      const users = await sql`SELECT id FROM users WHERE email = ${session.user.email}`;
+      if (users && users.length > 0) {
+        userId = users[0].id;
+        console.log("✅ Found user ID from database:", userId);
+      }
+    }
+
+    // Last resort fallback
+    if (!userId) {
+      userId = session.user?.email || 'unknown';
+      console.warn("⚠️ Using fallback userId:", userId);
+    }
 
     const { date, time, notes, patientName, phone } = await req.json();
 
@@ -57,10 +75,24 @@ export async function POST(req: Request) {
 
     const id = crypto.randomUUID();
 
-    await sql`
-      INSERT INTO appointments (id, "userId", "patientName", phone, "appointmentDate", "appointmentTime", notes)
-      VALUES (${id}, ${userId}, ${patientName}, ${phone}, ${date}, ${time}, ${notes || null})
-    `;
+    console.log("📝 Inserting appointment into database...");
+    try {
+      await sql`
+        INSERT INTO appointments (id, "userId", "patientName", phone, "appointmentDate", "appointmentTime", notes)
+        VALUES (${id}, ${userId}, ${patientName}, ${phone}, ${date}, ${time}, ${notes || null})
+      `;
+      console.log("✅ Appointment saved to database:", id);
+    } catch (dbError: any) {
+      console.error("❌ Database insertion failed:", dbError);
+      // Check if it's a foreign key violation
+      if (dbError.message?.includes("foreign key constraint") || dbError.code === "23503") {
+        return NextResponse.json(
+          { error: "User session expired or invalid. Please sign out and sign in again." },
+          { status: 400 }
+        );
+      }
+      throw dbError; // Rethrow to be caught by outer catch
+    }
 
     // Send email notifications via EmailJS server API
     try {
@@ -73,13 +105,16 @@ export async function POST(req: Request) {
       });
 
       console.log("📧 Attempting to send emails...");
-      console.log("  Service ID:", process.env.EMAILJS_SERVICE_ID);
-      console.log("  Template ID:", process.env.EMAILJS_TEMPLATE_ID);
-      console.log("  Has Public Key:", !!process.env.EMAILJS_PUBLIC_KEY);
-      console.log("  Has Private Key:", !!process.env.EMAILJS_PRIVATE_KEY);
+      
+      const hasPublicKey = !!process.env.EMAILJS_PUBLIC_KEY;
+      const hasPrivateKey = !!process.env.EMAILJS_PRIVATE_KEY;
+      const hasServiceId = !!process.env.EMAILJS_SERVICE_ID;
+      const hasTemplateId = !!process.env.EMAILJS_TEMPLATE_ID;
 
-      if (!process.env.EMAILJS_PUBLIC_KEY || !process.env.EMAILJS_PRIVATE_KEY) {
-        console.warn("⚠️ EmailJS keys not found - skipping email notifications");
+      if (!hasPublicKey || !hasPrivateKey || !hasServiceId || !hasTemplateId) {
+        console.warn("⚠️ EmailJS configuration missing:", {
+          hasPublicKey, hasPrivateKey, hasServiceId, hasTemplateId
+        });
       } else {
 
       // 1. Send notification email to admin
@@ -87,6 +122,7 @@ export async function POST(req: Request) {
         service_id: process.env.EMAILJS_SERVICE_ID,
         template_id: process.env.EMAILJS_TEMPLATE_ID,
         user_id: process.env.EMAILJS_PUBLIC_KEY,
+        accessToken: process.env.EMAILJS_PRIVATE_KEY, // Correct way for EmailJS server API
         template_params: {
           name: patientName,
           email: session.user.email || "",
@@ -100,26 +136,19 @@ export async function POST(req: Request) {
         },
       };
 
-      console.log("📧 Admin payload:", JSON.stringify(adminEmailPayload, null, 2));
-
+      console.log("📧 Sending admin notification...");
       const adminResponse = await fetch(
         "https://api.emailjs.com/api/v1.0/email/send",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.EMAILJS_PRIVATE_KEY}`,
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(adminEmailPayload),
         }
       );
 
-      const adminResponseText = await adminResponse.text();
-      console.log("📧 Admin response status:", adminResponse.status);
-      console.log("📧 Admin response body:", adminResponseText);
-
       if (!adminResponse.ok) {
-        console.error("❌ EmailJS admin API error:", adminResponseText);
+        const errorText = await adminResponse.text();
+        console.error("❌ EmailJS admin API error:", errorText);
       } else {
         console.log("✅ Admin notification email sent successfully");
       }
@@ -130,6 +159,7 @@ export async function POST(req: Request) {
           service_id: process.env.EMAILJS_SERVICE_ID,
           template_id: process.env.EMAILJS_TEMPLATE_ID,
           user_id: process.env.EMAILJS_PUBLIC_KEY,
+          accessToken: process.env.EMAILJS_PRIVATE_KEY, // Correct way for EmailJS server API
           template_params: {
             name: patientName,
             email: session.user.email,
@@ -143,41 +173,35 @@ export async function POST(req: Request) {
           },
         };
 
-        console.log("📧 Patient payload:", JSON.stringify(patientEmailPayload, null, 2));
-
+        console.log("📧 Sending patient confirmation...");
         const patientResponse = await fetch(
           "https://api.emailjs.com/api/v1.0/email/send",
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${process.env.EMAILJS_PRIVATE_KEY}`,
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(patientEmailPayload),
           }
         );
 
-        const patientResponseText = await patientResponse.text();
-        console.log("📧 Patient response status:", patientResponse.status);
-        console.log("📧 Patient response body:", patientResponseText);
-
         if (!patientResponse.ok) {
-          console.error("❌ EmailJS patient API error:", patientResponseText);
+          const errorText = await patientResponse.text();
+          console.error("❌ EmailJS patient API error:", errorText);
         } else {
           console.log("✅ Patient confirmation email sent successfully");
         }
       }
-      } // Close the EmailJS keys check
+      }
     } catch (emailErr) {
-      console.error("❌ Email send failed (non-blocking):", emailErr);
+      console.error("❌ Email process failed (non-blocking):", emailErr);
     }
 
     return NextResponse.json({ success: true, id });
-  } catch (error) {
-    console.error("Appointment booking error:", error);
+  } catch (error: any) {
+    console.error("Appointment booking error details:", error);
     return NextResponse.json(
-      { error: "Failed to book appointment" },
+      { error: "Failed to book appointment: " + (error.message || "Unknown error") },
       { status: 500 }
     );
   }
 }
+

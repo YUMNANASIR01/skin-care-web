@@ -9,8 +9,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Extract user ID as plain string
-    const userId = String((session.user as any).id || session.user.email || 'unknown');
+    // Extract user ID - handle different session formats
+    let userId = (session.user as any).id;
+    
+    // Fallback: If ID is missing from session, try to look it up by email
+    if (!userId && session.user?.email) {
+      const users = await sql`SELECT id FROM users WHERE email = ${session.user.email}`;
+      if (users && users.length > 0) {
+        userId = users[0].id;
+      }
+    }
+
+    if (!userId) {
+      userId = session.user?.email || 'unknown';
+    }
+    
+    userId = String(userId);
 
     console.log("Chat API - User ID:", userId);
 
