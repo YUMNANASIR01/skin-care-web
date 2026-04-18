@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import emailjs from "@emailjs/browser";
 
 interface ContactFormProps {
   selectedDate?: Date;
@@ -84,36 +83,6 @@ const ContactForm = ({ selectedDate, selectedTime, onChangeTime }: ContactFormPr
 
       if (!resp.ok) {
         throw new Error(data.error || "Failed to send message");
-      }
-
-      // 2. Send email to admin via EmailJS (client-side)
-      try {
-        const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!;
-        const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!;
-        const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!;
-
-        const dateStr = selectedDate.toLocaleDateString("en-US", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        });
-
-        emailjs.init(publicKey);
-        await emailjs.send(serviceId, templateId, {
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          phone: formData.phone.trim(),
-          message: formData.message.trim(),
-          appointment_date: dateStr,
-          appointment_time: selectedTime,
-          to_email: "yumna8178@gmail.com",
-          to_name: "Admin",
-        });
-
-        console.log("✅ Email sent via EmailJS");
-      } catch (emailErr) {
-        console.error("Email send failed (non-blocking):", emailErr);
       }
 
       toast.success("Appointment request sent successfully! We'll contact you soon.");
