@@ -35,12 +35,18 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    // 1. Check if DB is configured
+    if (!process.env.DATABASE_URL) {
+      console.error("❌ DATABASE_URL is missing");
+      return NextResponse.json({ error: "Database configuration missing on server" }, { status: 500 });
+    }
+
     const session = await getServerSession(authConfig);
 
     if (!session?.user) {
       console.warn("❌ Booking attempt without session");
       return NextResponse.json(
-        { error: "You must be signed in to book an appointment" },
+        { error: "Session not found. Please sign out and sign in again to refresh your session." },
         { status: 401 }
       );
     }
@@ -51,24 +57,42 @@ export async function POST(req: Request) {
     // Fallback: If ID is missing from session, try to look it up by email
     if (!userId && session.user?.email) {
       console.log("🔍 Session ID missing, looking up user by email:", session.user.email);
-      const users = await sql`SELECT id FROM users WHERE email = ${session.user.email}`;
-      if (users && users.length > 0) {
-        userId = users[0].id;
-        console.log("✅ Found user ID from database:", userId);
+      try {
+        const users = await sql`SELECT id FROM users WHERE email = ${session.user.email}`;
+        if (users && users.length > 0) {
+          userId = users[0].id;
+          console.log("✅ Found user ID from database:", userId);
+        } else {
+          // If user not in database, we can't insert appointment due to foreign key
+          console.error("❌ User not found in database for email:", session.user.email);
+          return NextResponse.json(
+            { error: "User profile not found in database. Please sign out and sign in again." },
+            { status: 400 }
+          );
+        }
+      } catch (dbLookupErr) {
+        console.error("❌ Database lookup failed:", dbLookupErr);
+        return NextResponse.json({ error: "Failed to verify user profile" }, { status: 500 });
       }
     }
 
-    // Last resort fallback
+    // Last resort fallback - if still no UUID-like ID, this will likely fail DB constraint
     if (!userId) {
-      userId = session.user?.email || 'unknown';
-      console.warn("⚠️ Using fallback userId:", userId);
+      return NextResponse.json({ error: "User identity could not be verified" }, { status: 400 });
     }
 
-    const { date, time, notes, patientName, phone } = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid request data" }, { status: 400 });
+    }
 
-    if (!date || !time) {
+    const { date, time, notes, patientName, phone } = body;
+
+    if (!date || !time || !patientName || !phone) {
       return NextResponse.json(
-        { error: "Date and time are required" },
+        { error: "Missing required fields: date, time, name, and phone are required" },
         { status: 400 }
       );
     }
@@ -84,14 +108,10 @@ export async function POST(req: Request) {
       console.log("✅ Appointment saved to database:", id);
     } catch (dbError: any) {
       console.error("❌ Database insertion failed:", dbError);
-      // Check if it's a foreign key violation
-      if (dbError.message?.includes("foreign key constraint") || dbError.code === "23503") {
-        return NextResponse.json(
-          { error: "User session expired or invalid. Please sign out and sign in again." },
-          { status: 400 }
-        );
-      }
-      throw dbError; // Rethrow to be caught by outer catch
+      return NextResponse.json(
+        { error: "Database error: " + (dbError.message || "Failed to save appointment") },
+        { status: 500 }
+      );
     }
 
     // Send email notifications via EmailJS server API

@@ -161,11 +161,16 @@ const AppointmentPageClient = () => {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to book appointment");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to book appointment");
+      }
 
       toast.success("Appointment booked successfully! We'll confirm shortly.");
       router.push("/");
     } catch (error: any) {
+      console.error("Booking error:", error);
       toast.error(error.message || "Failed to book appointment");
     } finally {
       setIsSubmitting(false);
